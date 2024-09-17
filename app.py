@@ -1,64 +1,98 @@
-import cv2 as cv
+import streamlit as st
 import numpy as np
+import cv2
+import os
+import time
 
-# Open the video capture
-cap = cv.VideoCapture('sample_data/squat.mov')
+st.set_page_config(
+    layout="wide",
+    page_title="Bar Path Tracker")
 
-# Read the first frame of the video
-ret, frame = cap.read()
+# Funzione di elaborazione: esempio di conversione in scala di grigi
+def process(frame):
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    processed_frame = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    return processed_frame
 
-# Allow the user to select the ROI
-roi_box = cv.selectROI("Select ROI", frame, fromCenter=False, showCrosshair=True)
+st.title("Bar Path Tracker")
 
-# Extract the coordinates of the ROI
-x, y, w, h = map(int, roi_box)
-roi = frame[y:y+h, x:x+w]
+# Creazione delle colonne
+left_col, right_col = st.columns(2)
 
-# Convert the ROI to HSV color space
-hsv_roi = cv.cvtColor(roi, cv.COLOR_BGR2HSV)
+uploaded_file = None
+processed_video_path = None
 
-# Create a mask to filter out low light (this removes dark pixels from the histogram calculation)
-mask = cv.inRange(hsv_roi, np.array((0., 60., 32.)), np.array((180., 255., 255.)))
+with left_col:
+    uploaded_file = st.file_uploader(
+        "Scegli un file video (.mp4)",
+        type=["mp4"]
+    )
 
-# Compute the histogram of the ROI in the HSV color space (using only the hue channel)
-roi_hist = cv.calcHist([hsv_roi], [0], mask, [180], [0, 180])
+    if uploaded_file is not None:
+        # Definisci il percorso del file video
+        file_name = uploaded_file.name
+        save_path = os.path.join("videos", file_name)  # Salva nella cartella 'videos'
 
-# Normalize the histogram
-cv.normalize(roi_hist, roi_hist, 0, 255, cv.NORM_MINMAX)
+        # Crea la directory se non esiste
+        if not os.path.exists("videos"):
+            os.makedirs("videos")
 
-# Define the termination criteria: either 50 iterations or moving by at least 1.5 pt
-term_crit = (cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 1)
+        # Salva il file caricato localmente
+        with open(save_path, "wb") as f:
+            f.write(uploaded_file.read())
 
-# Create the initial window for tracking
-track_window = (x, y, w, h)
+        # Conferma il percorso del file video
+        st.success(f"File salvato con successo in: {save_path}")
 
-while True:
-    # Capture a new frame
-    ret, frame = cap.read()
+        # Elaborazione del video con OpenCV
+        cap = cv2.VideoCapture(save_path)
+        if not cap.isOpened():
+            st.error("Errore nell'apertura del file video.")
+        else:
+            # Proprietà del video
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-    if ret:
-        # Convert the frame to HSV color space
-        hsv = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
+            # Usa il codec H264 per la codifica del video
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
-        # Back-project the histogram of the ROI onto the new frame (using the hue channel)
-        dst = cv.calcBackProject([hsv], [0], roi_hist, [0, 180], 1)
+            # Definisci il percorso del video elaborato
+            processed_video_path = os.path.join("videos", f"processed_{file_name}")
+            out = cv2.VideoWriter(processed_video_path, fourcc, fps, (width, height))
 
-        # Apply the mean shift to get the new location
-        ret, track_window = cv.meanShift(dst, track_window, term_crit)
+            st.info("Elaborazione del video in corso...")
+            frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            progress_bar = st.progress(0)
 
-        # Draw the new tracking window on the frame
-        x, y, w, h = track_window
-        cv.rectangle(frame, (x, y), (x+w, y+h), 255, 2)
+            for i in range(frame_count):
+                ret, frame = cap.read()
+                if not ret:
+                    break
 
-        # Display the result
-        cv.imshow('CamShift Tracking', frame)
+                # Elabora il frame
+                processed_frame = process(frame)
 
-        # Exit when the user presses the Esc key
-        if cv.waitKey(1) & 0xFF == 27:  # Reduce wait time for faster processing
-            break
-    else:
-        break
+                # Scrivi il frame elaborato
+                out.write(processed_frame)
 
-# Release the capture and close windows
-cap.release()
-cv.destroyAllWindows()
+                # Aggiorna la barra di avanzamento
+                progress_bar.progress((i + 1) / frame_count)
+
+            # Rilascia le risorse
+            cap.release()
+            out.release()
+
+            # Assicurati che il file sia completamente salvato
+            time.sleep(1)  # Pausa per dare tempo di completare la scrittura
+
+            progress_bar.empty()
+
+with right_col:
+    if uploaded_file is not None:
+        st.subheader("Video Originale")
+        st.video(save_path)
+
+        if processed_video_path:
+            st.subheader("Video Elaborato")
+            st.video(processed_video_path)
