@@ -52,6 +52,10 @@ def process_video(cap):
     first_frame = get_first_frame(cap)
     roi_hist, term_crit, track_window = selectROI(first_frame)
 
+    # calcolo spostamento
+    y_positions = []
+    y_positions.append(track_window[1]) # y
+
     for i in range(frame_count):
         ret, frame = cap.read()
         if not ret:
@@ -62,6 +66,9 @@ def process_video(cap):
 
         # scrivi il frame elaborato
         out.write(processed_frame)
+
+        # salva spostamento finestra
+        y_positions.append(track_window[1])
 
         # aggiorna la barra di avanzamento
         progress_bar.progress((i + 1) / frame_count)
@@ -98,7 +105,7 @@ def create_video_copy(file_name):
 
     return save_path
 
-def selectROI(frame, fromCenter=False, showCrosshair=True):
+def selectROI(frame):
     # consenti all'utente di selezionare la ROI
     roi_box = cv2.selectROI("Select ROI", frame, fromCenter=False, showCrosshair=True)
     cv2.destroyWindow("Select ROI")
@@ -126,6 +133,10 @@ def selectROI(frame, fromCenter=False, showCrosshair=True):
     track_window = (x, y, w, h)
 
     return roi_hist, term_crit, track_window
+
+def compute_movement(y_positions, y):
+    pass
+
 
 ###
 ### PAGE LAYOUT
