@@ -45,9 +45,7 @@ def process_video(cap):
     processed_video_path = os.path.join("videos", f"processed_{uploaded_file.name}")
     out = cv2.VideoWriter(processed_video_path, fourcc, fps, (width, height))
 
-    st.info("Elaborazione del video in corso...")
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    progress_bar = st.progress(0)
 
     # inizializza il tracciamento del percorso
     first_frame = get_first_frame(cap)
@@ -73,8 +71,6 @@ def process_video(cap):
 
         # aggiorna la barra di avanzamento
         progress_bar.progress((i + 1) / frame_count)
-
-    progress_bar.empty()
 
     velocities = compute_movement(
         y_positions,        # array di y
@@ -109,9 +105,6 @@ def create_video_copy(file_name):
     # salva il file caricato localmente
     with open(save_path, "wb") as f:
         f.write(uploaded_file.read())
-
-    # conferma il percorso del file video
-    st.success(f"File salvato con successo in: {save_path}")
 
     return save_path
 
@@ -169,6 +162,10 @@ def save_plot(velocities, path):
     plt.plot(velocities, label="Velocity (meters/second)", color="b", marker="o")
     plt.xlabel("Frame Index")
     plt.ylabel("Velocity (meters/second)")
+
+    # Limit the y-axis values between -2 and 2
+    plt.ylim(-2, 2)
+
     plt.title("Velocity of Y Movement")
     plt.legend()
     plt.grid(True)
@@ -186,14 +183,19 @@ left_col, right_col = st.columns(2)
 
 uploaded_file = None
 processed_video_path = None
+processed_plot_path = None
 
 with left_col:
     uploaded_file = st.file_uploader(
-        "Scegli un file video (.mp4)",
-        type=["mp4"]
+        "Scegli un file video (.mp4 / .mov)",
+        type=["mp4", "mov"]
     )
 
     if uploaded_file is not None:
+
+        st.info("Elaborazione del video in corso...")
+        progress_bar = st.progress(0)
+
         # definisci il percorso del file video
         save_path = create_video_copy(uploaded_file.name)
        
@@ -205,6 +207,8 @@ with left_col:
 
             # assicurati che il file sia completamente salvato
             time.sleep(5)  # pausa per dare tempo di completare la scrittura
+
+            progress_bar.empty()
 
         else:
             st.error("Errore nell'apertura del file video.")
