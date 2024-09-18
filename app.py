@@ -4,10 +4,18 @@ import cv2
 import os
 import time
 from matplotlib import pyplot as plt
+from PIL import Image
 
 st.set_page_config(
     layout="wide",
-    page_title="Bar Path Tracker")
+    page_title="Bar Path Tracker",
+    page_icon="resources/logo.png")
+
+
+# caricamento logo
+logo = Image.open("resources/logo.png")
+
+st.logo(logo)
 
 ###
 ### FUNZIONI DI ELABORAZIONE
