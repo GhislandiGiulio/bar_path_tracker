@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 import os
 import time
+from matplotlib import pyplot as plt
 
 st.set_page_config(
     layout="wide",
@@ -75,11 +76,20 @@ def process_video(cap):
 
     progress_bar.empty()
 
+    velocities = compute_movement(
+        y_positions,        # array di y
+        track_window[3],    # altezza window di tracking
+        fps,                # fps video
+        )
+    
+    processed_plot_path = os.path.join("plots", f"processed_{uploaded_file.name}.png")
+    save_plot(velocities, path = processed_plot_path)
+
     # rilascia le risorse
     cap.release()
     out.release()
 
-    return processed_video_path
+    return processed_video_path, processed_plot_path
     
 
 def get_first_frame(cap):
@@ -134,8 +144,35 @@ def selectROI(frame):
 
     return roi_hist, term_crit, track_window
 
-def compute_movement(y_positions, y):
-    pass
+def compute_movement(y_positions, window_height, video_fps):
+
+    from matplotlib import pyplot as plt
+
+    altezza_reale = 0.45 # altezza disco in metri
+
+    # calcolo del rapporto tra movimento in metri e in pixel
+    meters_per_pixel = altezza_reale / window_height
+
+    # calcolo i delta
+    y_deltas = np.diff(y_positions)
+    # inverto il segno dei delta
+    y_deltas = y_deltas * -1
+
+    velocities = y_deltas * meters_per_pixel * video_fps
+
+    return velocities
+
+def save_plot(velocities, path):
+        
+    # Plot the velocity graph
+    plt.figure(figsize=(10, 5))
+    plt.plot(velocities, label="Velocity (meters/second)", color="b", marker="o")
+    plt.xlabel("Frame Index")
+    plt.ylabel("Velocity (meters/second)")
+    plt.title("Velocity of Y Movement")
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(str(path))
 
 
 ###
@@ -164,10 +201,10 @@ with left_col:
         cap = cv2.VideoCapture(save_path)
 
         if cap.isOpened():
-            processed_video_path = process_video(cap)
+            processed_video_path, processed_plot_path = process_video(cap)
 
             # assicurati che il file sia completamente salvato
-            time.sleep(3)  # pausa per dare tempo di completare la scrittura
+            time.sleep(5)  # pausa per dare tempo di completare la scrittura
 
         else:
             st.error("Errore nell'apertura del file video.")
@@ -177,6 +214,14 @@ with right_col:
         st.subheader("Video Originale")
         st.video(save_path)
 
-if processed_video_path:
-    st.subheader("Video Elaborato")
-    st.video(processed_video_path)
+lower_left_col, lower_right_col = st.columns(2)
+
+with lower_left_col:
+    if processed_video_path:
+        st.subheader("Video Elaborato")
+        st.video(processed_video_path)
+
+with lower_right_col:
+    if processed_plot_path:
+        st.subheader("Grafico della Velocità")
+        st.image(processed_plot_path)
